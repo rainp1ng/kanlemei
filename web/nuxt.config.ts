@@ -3,15 +3,8 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   
-  // SSG 配置
-  ssr: true,
-  nitro: {
-    preset: 'static',
-    prerender: {
-      crawlLinks: true,
-      routes: ['/']
-    }
-  },
+  // 禁用 SSR，使用纯客户端渲染
+  ssr: false,
   
   // 应用配置
   app: {
