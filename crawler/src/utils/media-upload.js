@@ -5,7 +5,7 @@
 
 const MEDIA_UPLOAD_URL = 'http://media-singapore.rainping.com/p13111/upload'
 const MEDIA_AUTH_TOKEN = 'Bearer openclaw-mcp-a1b2c3d4e5f6g7h8'
-const MEDIA_DOMAIN = 'https://media-singapore.rainping.com'
+const MEDIA_DOMAIN = 'http://media-singapore.rainping.com'
 
 /**
  * 从 URL 下载图片并上传到媒体服务
