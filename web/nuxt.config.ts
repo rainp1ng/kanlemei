@@ -3,9 +3,6 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   
-  // 禁用 SSR，使用纯客户端渲染
-  ssr: false,
-  
   // 应用配置
   app: {
     head: {
@@ -37,5 +34,10 @@ export default defineNuxtConfig({
   tailwindcss: {
     cssPath: '~/assets/css/tailwind.css',
     configPath: 'tailwind.config.js'
+  },
+  
+  // Nitro 配置 - Vercel 部署
+  nitro: {
+    preset: 'vercel'
   }
 })

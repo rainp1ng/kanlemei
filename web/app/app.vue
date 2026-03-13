@@ -1,6 +1,5 @@
 <template>
-  <div>
-    <h1>测试页面</h1>
+  <NuxtLayout>
     <NuxtPage />
-  </div>
+  </NuxtLayout>
 </template>

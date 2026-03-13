@@ -57,38 +57,12 @@
             <span class="text-dark-400 text-sm">看了没 - 发现你喜欢的演出</span>
           </div>
           
-          <div class="flex items-center gap-6 text-sm text-dark-500">
-            <a href="#" class="hover:text-dark-300 transition-colors">关于我们</a>
-            <a href="#" class="hover:text-dark-300 transition-colors">联系方式</a>
-            <a href="#" class="hover:text-dark-300 transition-colors">隐私政策</a>
-          </div>
-          
           <div class="text-dark-600 text-sm">
             © 2024 看了没
           </div>
         </div>
       </div>
     </footer>
-    
-    <!-- 移动端搜索弹窗 -->
-    <div v-if="showMobileSearch" class="fixed inset-0 z-50 bg-dark-950/95 flex items-start justify-center pt-20 px-4">
-      <div class="w-full max-w-md">
-        <div class="relative">
-          <Icon name="ph:magnifying-glass" class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-400" />
-          <input
-            ref="mobileSearchInput"
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索艺人、演出、场馆..."
-            class="w-full pl-10 pr-4 py-3 bg-dark-800 border border-dark-700 rounded-lg focus:outline-none focus:border-primary-500"
-            @keyup.enter="handleSearch"
-          />
-        </div>
-        <button class="mt-4 w-full text-dark-400 hover:text-white transition-colors" @click="showMobileSearch = false">
-          取消
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -106,7 +80,6 @@ const handleSearch = () => {
   }
 }
 
-// 监听城市变化
 const city = useCookie('city')
 if (city.value) {
   currentCity.value = city.value
