@@ -92,7 +92,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const searchQuery = ref('')
 const showMobileSearch = ref(false)
 const currentCity = ref('广州')

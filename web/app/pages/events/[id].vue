@@ -113,7 +113,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { createClient } from '@supabase/supabase-js'
 
 const route = useRoute()
@@ -152,7 +152,7 @@ onMounted(() => {
   loadEvent()
 })
 
-const formatDateTime = (date: string) => {
+const formatDateTime = (date) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     year: 'numeric',
     month: 'long',
