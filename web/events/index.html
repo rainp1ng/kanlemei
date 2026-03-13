@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>演出列表 - 看了没</title>
+  <meta name="description" content="浏览全国音乐演出信息">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: { 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7' },
+            dark: { 300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b', 600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a', 950: '#020617' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    .text-gradient { background: linear-gradient(to right, #38bdf8, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .gradient-primary { background: linear-gradient(to right, #0284c7, #0ea5e9); }
+  </style>
+</head>
+<body class="bg-dark-950 text-dark-100 min-h-screen">
+  <!-- 导航栏 -->
+  <header class="sticky top-0 z-50 bg-dark-900/95 backdrop-blur border-b border-dark-800">
+    <nav class="container mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+        </div>
+        <span class="text-xl font-bold text-gradient">看了没</span>
+      </a>
+    </nav>
+  </header>
+
+  <main class="container mx-auto px-4 py-8">
+    <!-- 筛选器 -->
+    <div class="mb-8 space-y-4">
+      <div class="flex flex-wrap items-center gap-4">
+        <select id="cityFilter" class="bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-primary-500">
+          <option value="">全部城市</option>
+          <option value="北京">北京</option>
+          <option value="上海">上海</option>
+          <option value="广州">广州</option>
+          <option value="深圳">深圳</option>
+          <option value="成都">成都</option>
+          <option value="杭州">杭州</option>
+          <option value="武汉">武汉</option>
+          <option value="南京">南京</option>
+        </select>
+        <select id="typeFilter" class="bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-primary-500">
+          <option value="">全部类型</option>
+          <option value="concert">演唱会</option>
+          <option value="livehouse">Livehouse</option>
+          <option value="festival">音乐节</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 结果统计 -->
+    <div class="mb-6">
+      <p class="text-dark-400">共找到 <span id="totalCount" class="text-white font-medium">0</span> 场演出</p>
+    </div>
+
+    <!-- 加载状态 -->
+    <div id="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="bg-dark-900 rounded-xl overflow-hidden"><div class="aspect-video bg-dark-800 animate-pulse"></div><div class="p-4 space-y-2"><div class="h-4 bg-dark-800 rounded animate-pulse"></div></div></div>
+      <div class="bg-dark-900 rounded-xl overflow-hidden"><div class="aspect-video bg-dark-800 animate-pulse"></div><div class="p-4 space-y-2"><div class="h-4 bg-dark-800 rounded animate-pulse"></div></div></div>
+      <div class="bg-dark-900 rounded-xl overflow-hidden"><div class="aspect-video bg-dark-800 animate-pulse"></div><div class="p-4 space-y-2"><div class="h-4 bg-dark-800 rounded animate-pulse"></div></div></div>
+    </div>
+
+    <!-- 演出列表 -->
+    <div id="eventList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden"></div>
+
+    <!-- 空状态 -->
+    <div id="empty" class="py-20 text-center hidden">
+      <svg class="w-16 h-16 mx-auto text-dark-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+      <p class="text-dark-400">没有找到符合条件的演出</p>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    const SUPABASE_URL = 'https://fjdjumlzqazvulvanmdg.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZGp1bWx6cWF6dnVsdmFubWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyODkxNjMsImV4cCI6MjA4ODg2NTE2M30.TWY_ftq6GYHU95zFb2JoIJZ0O_JCCwPt9AE_69DgCmI';
+
+    const typeLabels = { concert: '演唱会', livehouse: 'Livehouse', festival: '音乐节' };
+    const typeColors = { concert: 'bg-pink-500/80', livehouse: 'bg-purple-500/80', festival: 'bg-orange-500/80' };
+
+    async function loadEventsList() {
+      const loading = document.getElementById('loading');
+      const eventList = document.getElementById('eventList');
+      const empty = document.getElementById('empty');
+      const totalCount = document.getElementById('totalCount');
+
+      const params = new URLSearchParams(window.location.search);
+      const city = document.getElementById('cityFilter').value || params.get('city') || '';
+      const type = document.getElementById('typeFilter').value || params.get('type') || '';
+
+      loading.classList.remove('hidden');
+      eventList.classList.add('hidden');
+      empty.classList.add('hidden');
+
+      try {
+        let url = `${SUPABASE_URL}/rest/v1/events?select=*,count&status=eq.active&event_date=gte.${new Date().toISOString()}&order=event_date.asc`;
+        if (city) url += `&city=eq.${encodeURIComponent(city)}`;
+        if (type) url += `&event_type=eq.${type}`;
+
+        const response = await fetch(url, {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact' }
+        });
+
+        const events = await response.json();
+        const count = response.headers.get('content-range')?.split('/')[1] || events.length;
+
+        totalCount.textContent = count;
+        loading.classList.add('hidden');
+
+        if (events.length === 0) {
+          empty.classList.remove('hidden');
+        } else {
+          eventList.innerHTML = events.map(event => `
+            <a href="/events/detail.html?id=${event.id}" class="bg-dark-900 rounded-xl overflow-hidden hover:shadow-lg hover:shadow-primary-500/10 transition-all group">
+              <div class="aspect-video relative overflow-hidden">
+                ${event.poster_url 
+                  ? `<img src="${event.poster_url}" alt="${event.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">`
+                  : `<div class="w-full h-full bg-gradient-to-br from-dark-700 to-dark-800 flex items-center justify-center"><svg class="w-16 h-16 text-dark-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg></div>`
+                }
+                <div class="absolute top-2 left-2">
+                  <span class="px-2 py-1 rounded text-xs font-medium ${typeColors[event.event_type] || 'bg-dark-700'} text-white">${typeLabels[event.event_type] || '演出'}</span>
+                </div>
+              </div>
+              <div class="p-4">
+                <h3 class="font-medium text-white group-hover:text-primary-400 transition-colors line-clamp-1">${event.title}</h3>
+                <p class="text-dark-400 text-sm mt-1 line-clamp-1">${event.artist_names?.join(' / ') || '待公布'}</p>
+                <div class="flex items-center gap-2 mt-2 text-xs text-dark-500">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                  <span>${event.city} · ${event.venue_name || '待定'}</span>
+                </div>
+                <div class="mt-3 pt-3 border-t border-dark-800">
+                  <span class="text-primary-400 font-medium">${event.price_range || '待定'}</span>
+                </div>
+              </div>
+            </a>
+          `).join('');
+          eventList.classList.remove('hidden');
+        }
+      } catch (err) {
+        console.error(err);
+        loading.classList.add('hidden');
+        empty.classList.remove('hidden');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('city')) document.getElementById('cityFilter').value = params.get('city');
+      if (params.get('type')) document.getElementById('typeFilter').value = params.get('type');
+      
+      loadEventsList();
+      
+      document.getElementById('cityFilter').addEventListener('change', loadEventsList);
+      document.getElementById('typeFilter').addEventListener('change', loadEventsList);
+    });
+  </script>
+</body>
+</html>
