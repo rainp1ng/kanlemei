@@ -44,11 +44,10 @@ export const config = {
     }
   },
   
-  // 七牛云配置
-  qiniu: {
-    accessKey: 'jVeA56atbZqphRGKdJ3AeGB8GrqeDRd04FWuG6j0',
-    secretKey: 's3n-IpkX2HpgQsgL8R_FbrDIa-rqYI7a7bNv3v6P',
-    bucket: 'kanlemei',
-    domain: 'https://cdn.kanlemei.com'
+  // 媒体服务配置
+  media: {
+    uploadUrl: 'http://media-singapore.rainping.com/p13111/upload',
+    authToken: 'Bearer openclaw-mcp-a1b2c3d4e5f6g7h8',
+    domain: 'https://media-singapore.rainping.com'
   }
 };

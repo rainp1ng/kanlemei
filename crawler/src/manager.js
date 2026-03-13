@@ -1,5 +1,6 @@
 import { supabase, config } from './config/index.js'
 import XiudongCrawler from './crawlers/xiudong.js'
+import { uploadImageFromUrl } from './utils/media-upload.js'
 
 /**
  * 爬虫管理器
@@ -66,7 +67,7 @@ export class CrawlerManager {
       this.stats.found = allEvents.length
       console.log(`\n📊 Found ${allEvents.length} events`)
       
-      // 保存到数据库
+      // 保存到数据库（包含图片上传）
       for (const event of allEvents) {
         try {
           await this.saveEvent(event)
@@ -132,19 +133,44 @@ export class CrawlerManager {
     // 检查是否已存在
     const { data: existing } = await supabase
       .from('events')
-      .select('id')
+      .select('id, poster_url')
       .eq('source_platform', event.source_platform)
       .eq('source_id', event.source_id)
       .single()
+    
+    // 上传图片到媒体服务
+    let posterUrl = event.poster_url
+    let posterPostfix = null
+    
+    if (event.poster_url && event.poster_url.startsWith('http')) {
+      try {
+        console.log(`  📷 Uploading image for: ${event.title}`)
+        const uploadResult = await uploadImageFromUrl(event.poster_url)
+        posterUrl = uploadResult.url
+        posterPostfix = uploadResult.postfix
+        console.log(`  ✅ Image uploaded: ${posterUrl}`)
+        
+        // 延迟避免请求过快
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+      } catch (error) {
+        console.log(`  ⚠️ Image upload failed: ${error.message}`)
+        // 继续使用原始 URL
+      }
+    }
+    
+    const eventData = {
+      ...event,
+      poster_url: posterUrl,
+      poster_postfix: posterPostfix,
+      updated_at: new Date().toISOString()
+    }
     
     if (existing) {
       // 更新
       const { error } = await supabase
         .from('events')
-        .update({
-          ...event,
-          updated_at: new Date().toISOString()
-        })
+        .update(eventData)
         .eq('id', existing.id)
       
       if (!error) {
@@ -155,7 +181,7 @@ export class CrawlerManager {
       // 新增
       const { error } = await supabase
         .from('events')
-        .insert(event)
+        .insert(eventData)
       
       if (!error) {
         this.stats.added++
