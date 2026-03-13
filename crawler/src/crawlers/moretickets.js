@@ -4,6 +4,7 @@ import { config } from '../config/index.js'
 /**
  * MoreTickets 爬虫
  * https://www.moretickets.com
+ * 国际票务平台，主要港澳演出
  */
 export class MoreticketsCrawler extends BaseCrawler {
   get platform() {
@@ -18,65 +19,120 @@ export class MoreticketsCrawler extends BaseCrawler {
    * 爬取演出列表
    */
   async crawlList(params = {}) {
-    const { city, type = 'all', page = 1 } = params
     const results = []
     
     try {
       if (!this.page) await this.launchBrowser()
       
-      // MoreTickets 演出列表
-      const typePath = {
-        concert: 'concert',
-        livehouse: 'live',
-        festival: 'festival',
-        all: ''
-      }
-      
-      const url = `${this.baseUrl}/events/${typePath[type] || ''}?page=${page}`
+      // 访问首页
+      const url = `${this.baseUrl}/`
       console.log(`[MoreTickets] Crawling: ${url}`)
       
       await this.goto(url)
-      await this.delay(2000)
+      await this.delay(3000)
       
-      // 等待列表加载
-      await this.page.waitForSelector('.event-card, .event-item, [class*="event"]', { timeout: 10000 }).catch(() => {})
-      
-      // 提取演出链接
-      const eventLinks = await this.page.evaluate(() => {
-        const links = []
-        const selectors = [
-          'a[href*="/event/"]',
-          'a[href*="/events/"]',
-          '.event-card a',
-          '.event-item a',
-          '[class*="event"] a'
-        ]
+      // 提取演出信息（首页直接显示演出列表）
+      const events = await this.page.evaluate(() => {
+        const results = []
+        const seen = new Set()
         
-        for (const selector of selectors) {
-          const elements = document.querySelectorAll(selector)
-          elements.forEach(el => {
-            const href = el.href
-            if (href && !links.includes(href) && (href.includes('/event/') || href.includes('/events/'))) {
-              links.push(href)
+        // 查找所有演出卡片
+        const cards = document.querySelectorAll('[class*="event"], [class*="card"], [class*="item"]')
+        
+        // 尝试从页面提取演出信息
+        // 页面结构：每个演出有名称、日期、地点、价格
+        document.querySelectorAll('a').forEach(a => {
+          const text = a.textContent || ''
+          const href = a.href
+          
+          // 跳过导航链接
+          if (!href || href.includes('about') || href.includes('faq') || href.includes('careers')) return
+          
+          // 尝试提取演出信息
+          const parentEl = a.closest('[class*="event"]') || a.closest('[class*="card"]') || a.parentElement?.parentElement
+          if (!parentEl) return
+          
+          const fullText = parentEl.textContent || ''
+          
+          // 检查是否包含演出信息
+          if (fullText.includes('演唱會') || fullText.includes('活動') || fullText.includes('HK$') || fullText.includes('澳門') || fullText.includes('香港')) {
+            // 提取标题
+            const titleMatch = fullText.match(/([^\n]+?(演唱會|巡演|見面會|音樂會)[^\n]*)/)
+            const title = titleMatch ? titleMatch[1].trim() : ''
+            
+            if (title && !seen.has(title)) {
+              seen.add(title)
+              
+              // 提取日期
+              const dateMatch = fullText.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/)
+              const date = dateMatch ? `${dateMatch[1]}/${dateMatch[2]}/${dateMatch[3]}` : ''
+              
+              // 提取地点
+              let location = ''
+              if (fullText.includes('中國香港') || fullText.includes('香港')) location = '香港'
+              else if (fullText.includes('中國澳門') || fullText.includes('澳門')) location = '澳门'
+              else if (fullText.includes('中國台灣') || fullText.includes('台灣')) location = '台湾'
+              else if (fullText.includes('新加坡')) location = '新加坡'
+              else if (fullText.includes('馬來西亞')) location = '马来西亚'
+              else if (fullText.includes('韓國')) location = '韩国'
+              
+              // 提取价格
+              const priceMatch = fullText.match(/HK\$\s*[\d,]+/)
+              const price = priceMatch ? priceMatch[0] : ''
+              
+              // 尝试获取图片
+              const img = parentEl.querySelector('img')
+              const poster = img ? img.src : ''
+              
+              results.push({
+                title,
+                date,
+                location,
+                price,
+                poster,
+                sourceUrl: href.includes('show-list') ? '' : href,
+                sourceId: href.split('/').pop() || ''
+              })
             }
-          })
-        }
+          }
+        })
         
-        return links
+        return results.slice(0, 30)
       })
       
-      console.log(`[MoreTickets] Found ${eventLinks.length} events`)
+      console.log(`[MoreTickets] Found ${events.length} events`)
       
-      // 爬取每个演出的详情
-      for (const link of eventLinks.slice(0, 20)) {
+      // 处理每个演出
+      for (const event of events) {
+        if (!event.title || !event.sourceUrl) continue
+        
         try {
-          await this.delay(800)
-          const detail = await this.crawlDetail(link)
-          if (detail) {
-            results.push(detail)
+          await this.delay(500)
+          
+          // 如果有详情页，访问获取更多信息
+          if (event.sourceUrl && event.sourceUrl.startsWith('http')) {
+            const detail = await this.crawlDetail(event.sourceUrl)
+            if (detail) {
+              results.push(detail)
+              console.log(`[MoreTickets] ✅ Crawled: ${detail.title}`)
+            }
+          } else {
+            // 直接使用列表信息
+            const normalized = this.normalize({
+              title: event.title,
+              venueName: event.location,
+              city: event.location,
+              eventDate: this.parseDate(event.date),
+              posterUrl: event.poster,
+              priceRange: event.price,
+              sourceUrl: event.sourceUrl || `${this.baseUrl}/`,
+              sourceId: event.sourceId || `mt_${Date.now()}`
+            })
+            results.push(normalized)
+            console.log(`[MoreTickets] ✅ Added: ${event.title}`)
           }
         } catch (error) {
-          console.error(`[MoreTickets] Error crawling ${link}:`, error.message)
+          console.error(`[MoreTickets] Error processing event:`, error.message)
         }
       }
       
@@ -97,7 +153,7 @@ export class MoreticketsCrawler extends BaseCrawler {
       
       console.log(`[MoreTickets] Crawling detail: ${url}`)
       await this.goto(url)
-      await this.delay(1000)
+      await this.delay(1500)
       
       // 提取详情数据
       const data = await this.page.evaluate(() => {
@@ -159,6 +215,8 @@ export class MoreticketsCrawler extends BaseCrawler {
         }
       })
       
+      if (!data.title) return null
+      
       // 解析时间
       const eventDate = this.parseDate(data.timeText)
       
@@ -197,7 +255,8 @@ export class MoreticketsCrawler extends BaseCrawler {
     const patterns = [
       /(\d{4})[年\-\/](\d{1,2})[月\-\/](\d{1,2})[日]?\s*(\d{1,2}):(\d{2})/,
       /(\d{1,2})[月\-\/](\d{1,2})[日]?\s*(\d{1,2}):(\d{2})/,
-      /(\d{4})-(\d{2})-(\d{2})/
+      /(\d{4})-(\d{2})-(\d{2})/,
+      /(\d{4})\/(\d{1,2})\/(\d{1,2})/
     ]
     
     for (const pattern of patterns) {
@@ -206,12 +265,21 @@ export class MoreticketsCrawler extends BaseCrawler {
         let year, month, day, hour = 0, minute = 0
         
         if (match.length === 6) {
-          [, year, month, day, hour, minute] = match
+          year = match[1]
+          month = match[2]
+          day = match[3]
+          hour = match[4]
+          minute = match[5]
         } else if (match.length === 5) {
           year = new Date().getFullYear()
-          [, month, day, hour, minute] = match
+          month = match[1]
+          day = match[2]
+          hour = match[3]
+          minute = match[4]
         } else if (match.length === 4) {
-          [, year, month, day] = match
+          year = match[1]
+          month = match[2]
+          day = match[3]
         }
         
         return new Date(year, month - 1, day, hour, minute).toISOString()
@@ -228,7 +296,7 @@ export class MoreticketsCrawler extends BaseCrawler {
     if (!text) return { city: '', venueName: '' }
     
     // 尝试提取城市
-    const cityMatch = text.match(/(北京|上海|广州|深圳|成都|杭州|重庆|武汉|西安|苏州|天津|南京|长沙|郑州|东莞|青岛|沈阳|宁波|昆明|香港|澳门)/)
+    const cityMatch = text.match(/(北京|上海|广州|深圳|成都|杭州|重庆|武汉|西安|苏州|天津|南京|长沙|郑州|东莞|青岛|沈阳|宁波|昆明|香港|澳门|台湾|新加坡|马来西亚|韩国)/)
     const city = cityMatch ? cityMatch[1] : ''
     
     // 场馆名称
@@ -245,11 +313,11 @@ export class MoreticketsCrawler extends BaseCrawler {
     
     const prices = text.match(/\d+/g)
     if (prices && prices.length > 0) {
-      const nums = prices.map(Number).filter(n => n > 10 && n < 10000)
+      const nums = prices.map(Number).filter(n => n > 10 && n < 100000)
       if (nums.length > 0) {
         const min = Math.min(...nums)
         const max = Math.max(...nums)
-        return min === max ? `¥${min}` : `¥${min}-${max}`
+        return min === max ? `HK$${min}` : `HK$${min}-${max}`
       }
     }
     

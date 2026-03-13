@@ -1,3 +1,5 @@
+import { config } from '../config/index.js'
+
 /**
  * 爬虫基类
  * 所有平台爬虫继承此类
@@ -11,6 +13,8 @@ export class BaseCrawler {
       retries: 3,
       ...options
     }
+    this.browser = null
+    this.page = null
   }
   
   /**
@@ -33,13 +37,14 @@ export class BaseCrawler {
   async launchBrowser() {
     const puppeteer = await import('puppeteer')
     
-    this.browser = await puppeteer.launch({
+    this.browser = await puppeteer.default.launch({
       headless: 'new',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--disable-gpu'
+        '--disable-gpu',
+        '--window-size=1280,800'
       ]
     })
     
@@ -97,10 +102,6 @@ export class BaseCrawler {
   
   /**
    * 爬取演出列表
-   * @param {object} params - 爬取参数
-   * @param {string} params.city - 城市
-   * @param {string} params.type - 演出类型
-   * @returns {Promise<Array>} 演出列表
    */
   async crawlList(params) {
     throw new Error('crawlList must be implemented')
@@ -108,8 +109,6 @@ export class BaseCrawler {
   
   /**
    * 爬取演出详情
-   * @param {string} url - 演出详情页 URL
-   * @returns {Promise<object>} 演出详情
    */
   async crawlDetail(url) {
     throw new Error('crawlDetail must be implemented')
@@ -117,8 +116,6 @@ export class BaseCrawler {
   
   /**
    * 解析演出数据
-   * @param {object} rawData - 原始数据
-   * @returns {object} 标准化的演出数据
    */
   normalize(rawData) {
     return {
