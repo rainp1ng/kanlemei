@@ -90,7 +90,6 @@
     </div>
   </main>
 
-  <script src="/js/app.js"></script>
   <script>
     const SUPABASE_URL = 'https://fjdjumlzqazvulvanmdg.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZGp1bWx6cWF6dnVsdmFubWRnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyODkxNjMsImV4cCI6MjA4ODg2NTE2M30.TWY_ftq6GYHU95zFb2JoIJZ0O_JCCwPt9AE_69DgCmI';
@@ -104,6 +103,7 @@
       const empty = document.getElementById('empty');
       const totalCount = document.getElementById('totalCount');
 
+      // 从 URL 和选择器获取筛选值
       const params = new URLSearchParams(window.location.search);
       const city = document.getElementById('cityFilter').value || params.get('city') || '';
       const type = document.getElementById('typeFilter').value || params.get('type') || '';
@@ -113,18 +113,24 @@
       empty.classList.add('hidden');
 
       try {
-        let url = `${SUPABASE_URL}/rest/v1/events?select=*,count&status=eq.active&event_date=gte.${new Date().toISOString()}&order=event_date.asc`;
+        // 构建 API URL
+        let url = `${SUPABASE_URL}/rest/v1/events?select=*&status=eq.active&event_date=gte.${new Date().toISOString()}&order=event_date.asc`;
         if (city) url += `&city=eq.${encodeURIComponent(city)}`;
         if (type) url += `&event_type=eq.${type}`;
 
+        console.log('API URL:', url); // 调试用
+
         const response = await fetch(url, {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Prefer': 'count=exact' }
+          headers: { 
+            'apikey': SUPABASE_KEY, 
+            'Authorization': `Bearer ${SUPABASE_KEY}`
+          }
         });
 
         const events = await response.json();
-        const count = response.headers.get('content-range')?.split('/')[1] || events.length;
+        console.log('Events:', events.length); // 调试用
 
-        totalCount.textContent = count;
+        totalCount.textContent = events.length;
         loading.classList.add('hidden');
 
         if (events.length === 0) {
@@ -157,19 +163,21 @@
           eventList.classList.remove('hidden');
         }
       } catch (err) {
-        console.error(err);
+        console.error('Error:', err);
         loading.classList.add('hidden');
         empty.classList.remove('hidden');
       }
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+      // 从 URL 初始化选择器
       const params = new URLSearchParams(window.location.search);
       if (params.get('city')) document.getElementById('cityFilter').value = params.get('city');
       if (params.get('type')) document.getElementById('typeFilter').value = params.get('type');
       
       loadEventsList();
       
+      // 筛选器变化时重新加载
       document.getElementById('cityFilter').addEventListener('change', loadEventsList);
       document.getElementById('typeFilter').addEventListener('change', loadEventsList);
     });
