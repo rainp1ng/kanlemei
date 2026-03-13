@@ -1,7 +1,7 @@
 <template>
   <div class="container mx-auto px-4 py-8">
     <!-- 加载状态 -->
-    <div v-if="pending" class="animate-pulse">
+    <div v-if="loading" class="animate-pulse">
       <div class="h-80 bg-dark-800 rounded-xl mb-6" />
       <div class="h-6 bg-dark-800 rounded w-2/3 mb-4" />
       <div class="h-4 bg-dark-800 rounded w-1/2" />
@@ -43,9 +43,6 @@
               <span class="px-2 py-1 rounded text-xs font-medium" :class="getTypeClass(event.event_type)">
                 {{ getTypeLabel(event.event_type) }}
               </span>
-              <span v-if="event.status !== 'active'" class="px-2 py-1 rounded text-xs font-medium bg-dark-800">
-                {{ getStatusLabel(event.status) }}
-              </span>
             </div>
             
             <h1 class="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -53,14 +50,13 @@
             </h1>
             
             <div v-if="event.artist_names?.length" class="flex flex-wrap gap-2 mt-3">
-              <NuxtLink 
+              <span 
                 v-for="artist in event.artist_names" 
                 :key="artist"
-                :to="`/search?q=${encodeURIComponent(artist)}`"
-                class="px-3 py-1 bg-dark-800 rounded-full text-sm text-dark-300 hover:text-primary-400 transition-colors"
+                class="px-3 py-1 bg-dark-800 rounded-full text-sm text-dark-300"
               >
                 {{ artist }}
-              </NuxtLink>
+              </span>
             </div>
           </div>
           
@@ -73,9 +69,6 @@
               <div>
                 <p class="text-dark-400 text-sm">演出时间</p>
                 <p class="text-white font-medium">{{ formatDateTime(event.event_date) }}</p>
-                <p v-if="event.event_end_date" class="text-dark-500 text-sm">
-                  至 {{ formatDateTime(event.event_end_date) }}
-                </p>
               </div>
             </div>
             
@@ -101,40 +94,9 @@
             </div>
           </div>
           
-          <!-- 购票链接 -->
-          <div v-if="ticketPlatforms.length">
-            <h3 class="text-lg font-medium mb-3">购票渠道</h3>
-            <div class="flex flex-wrap gap-3">
-              <a
-                v-for="platform in ticketPlatforms"
-                :key="platform.name"
-                :href="platform.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-primary flex items-center gap-2"
-              >
-                <Icon :name="getPlatformIcon(platform.name)" />
-                {{ platform.name }}
-                <Icon name="ph:arrow-square-out" class="text-sm" />
-              </a>
-            </div>
-          </div>
-          
-          <!-- 演出介绍 -->
-          <div v-if="event.description">
-            <h3 class="text-lg font-medium mb-3">演出介绍</h3>
-            <div class="card p-6">
-              <p class="text-dark-300 leading-relaxed whitespace-pre-line">
-                {{ event.description }}
-              </p>
-            </div>
-          </div>
-          
           <!-- 来源信息 -->
           <div class="text-dark-600 text-sm">
             数据来源: {{ event.source_platform || '未知' }}
-            <span class="mx-2">·</span>
-            更新于 {{ formatRelativeTime(event.updated_at) }}
           </div>
         </div>
       </div>
@@ -152,26 +114,44 @@
 </template>
 
 <script setup>
+import { createClient } from '@supabase/supabase-js'
+
 const route = useRoute()
-const { getEventById } = useEvents()
-
-const id = computed(() => route.params.id as string)
-
-// 获取演出详情
-const { data: event, pending } = await useAsyncData(
-  `event-${id.value}`,
-  () => getEventById(id.value)
+const config = useRuntimeConfig()
+const supabase = createClient(
+  config.public.supabaseUrl,
+  config.public.supabaseKey
 )
 
-// 解析票务平台
-const ticketPlatforms = computed(() => {
-  if (!event.value?.ticket_platforms) return []
-  const platforms = event.value.ticket_platforms
-  if (Array.isArray(platforms)) return platforms
-  return []
+const event = ref(null)
+const loading = ref(true)
+
+const loadEvent = async () => {
+  const id = route.params.id
+  if (!id) return
+  
+  loading.value = true
+  
+  try {
+    const { data, error } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error) throw error
+    event.value = data
+  } catch (e) {
+    console.error('Failed to load event:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadEvent()
 })
 
-// 方法
 const formatDateTime = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     year: 'numeric',
@@ -201,47 +181,8 @@ const getTypeClass = (type: string) => {
   return classes[type] || 'bg-dark-700 text-white'
 }
 
-const getStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    sold_out: '已售罄',
-    cancelled: '已取消',
-    ended: '已结束'
-  }
-  return labels[status] || ''
-}
-
-const getPlatformIcon = (name: string) => {
-  const icons: Record<string, string> = {
-    '大麦': 'simple-icons:douban',
-    '秀动': 'ph:ticket',
-    '猫眼': 'ph:cat',
-    '纷玩岛': 'ph:island'
-  }
-  return icons[name] || 'ph:ticket'
-}
-
-const formatRelativeTime = (date: string) => {
-  const now = new Date()
-  const then = new Date(date)
-  const diff = now.getTime() - then.getTime()
-  
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-  
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  if (hours < 24) return `${hours} 小时前`
-  if (days < 30) return `${days} 天前`
-  return then.toLocaleDateString('zh-CN')
-}
-
-// SEO
 useSeoMeta({
-  title: computed(() => event.value ? `${event.value.title} - ${event.value.artist_names?.[0] || ''} | 看了没` : '加载中...'),
-  description: computed(() => event.value ? `${event.value.title}，${event.value.artist_names?.join('、')}，${event.value.city} ${event.value.venue_name}，${formatDateTime(event.value.event_date)}` : ''),
-  ogTitle: computed(() => event.value?.title || ''),
-  ogDescription: computed(() => event.value ? `${event.value.artist_names?.join('、')} - ${formatDateTime(event.value.event_date)}` : ''),
-  ogImage: computed(() => event.value?.poster_url || '')
+  title: computed(() => event.value ? `${event.value.title} | 看了没` : '加载中...'),
+  description: computed(() => event.value?.title || '')
 })
 </script>

@@ -53,7 +53,7 @@
         </div>
         
         <!-- 加载状态 -->
-        <div v-if="pending" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div v-if="loading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div v-for="i in 4" :key="i" class="card">
             <div class="aspect-[3/4] bg-dark-800 animate-pulse" />
             <div class="p-4 space-y-2">
@@ -64,7 +64,7 @@
         </div>
         
         <!-- 演出卡片 -->
-        <div v-else-if="events?.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div v-else-if="events.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <NuxtLink 
             v-for="event in events" 
             :key="event.id" 
@@ -129,6 +129,12 @@
           <p class="text-dark-400">暂无演出信息</p>
           <p class="text-dark-600 text-sm mt-2">请稍后再来看看</p>
         </div>
+        
+        <!-- 错误状态 -->
+        <div v-if="error" class="py-8 text-center">
+          <p class="text-red-400">{{ error }}</p>
+          <button @click="loadEvents" class="btn btn-secondary mt-4">重试</button>
+        </div>
       </div>
     </section>
     
@@ -160,7 +166,19 @@
 </template>
 
 <script setup>
-const { getHotEvents } = useEvents()
+import { createClient } from '@supabase/supabase-js'
+
+// Supabase 客户端
+const config = useRuntimeConfig()
+const supabase = createClient(
+  config.public.supabaseUrl,
+  config.public.supabaseKey
+)
+
+// 状态
+const events = ref([])
+const loading = ref(true)
+const error = ref(null)
 
 // 热门城市
 const hotCities = [
@@ -183,8 +201,34 @@ const categories = [
   { type: 'festival', label: '音乐节', desc: '户外音乐节', icon: 'ph:tent', bgClass: 'bg-orange-500/20 text-orange-400' }
 ]
 
-// 获取热门演出
-const { data: events, pending } = await useAsyncData('hot-events', () => getHotEvents(8))
+// 加载演出数据
+const loadEvents = async () => {
+  loading.value = true
+  error.value = null
+  
+  try {
+    const { data, error: fetchError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('status', 'active')
+      .gte('event_date', new Date().toISOString())
+      .order('view_count', { ascending: false })
+      .limit(8)
+    
+    if (fetchError) throw fetchError
+    events.value = data || []
+  } catch (e) {
+    error.value = e.message
+    console.error('Failed to load events:', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 客户端加载数据
+onMounted(() => {
+  loadEvents()
+})
 
 // 方法
 const selectCity = (city: string) => {

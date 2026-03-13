@@ -8,6 +8,7 @@
           <select 
             v-model="filters.city"
             class="appearance-none bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:border-primary-500"
+            @change="loadEvents"
           >
             <option value="">全部城市</option>
             <option v-for="city in cities" :key="city" :value="city">{{ city }}</option>
@@ -20,6 +21,7 @@
           <select 
             v-model="filters.type"
             class="appearance-none bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:border-primary-500"
+            @change="loadEvents"
           >
             <option value="">全部类型</option>
             <option value="concert">演唱会</option>
@@ -29,23 +31,9 @@
           <Icon name="ph:caret-down" class="absolute right-2 top-1/2 -translate-y-1/2 text-dark-400 pointer-events-none" />
         </div>
         
-        <!-- 时间筛选 -->
-        <div class="relative">
-          <select 
-            v-model="filters.time"
-            class="appearance-none bg-dark-800 border border-dark-700 rounded-lg px-4 py-2 pr-8 text-sm focus:outline-none focus:border-primary-500"
-          >
-            <option value="">全部时间</option>
-            <option value="week">本周</option>
-            <option value="month">本月</option>
-            <option value="quarter">三个月内</option>
-          </select>
-          <Icon name="ph:caret-down" class="absolute right-2 top-1/2 -translate-y-1/2 text-dark-400 pointer-events-none" />
-        </div>
-        
         <!-- 重置按钮 -->
         <button 
-          v-if="hasFilters"
+          v-if="filters.city || filters.type"
           class="text-sm text-dark-400 hover:text-white transition-colors"
           @click="resetFilters"
         >
@@ -63,7 +51,7 @@
     </div>
     
     <!-- 加载状态 -->
-    <div v-if="pending" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div v-for="i in 6" :key="i" class="card">
         <div class="aspect-video bg-dark-800 animate-pulse" />
         <div class="p-4 space-y-2">
@@ -74,7 +62,7 @@
     </div>
     
     <!-- 演出列表 -->
-    <div v-else-if="events?.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-else-if="events.length" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <NuxtLink 
         v-for="event in events" 
         :key="event.id" 
@@ -99,13 +87,6 @@
               {{ getTypeLabel(event.event_type) }}
             </span>
           </div>
-          
-          <!-- 状态标签 -->
-          <div v-if="event.status !== 'active'" class="absolute top-2 right-2">
-            <span class="px-2 py-1 rounded text-xs font-medium bg-dark-800/80">
-              {{ getStatusLabel(event.status) }}
-            </span>
-          </div>
         </div>
         
         <!-- 信息 -->
@@ -126,15 +107,6 @@
           </div>
           <div class="flex items-center justify-between mt-3 pt-3 border-t border-dark-800">
             <span class="text-primary-400 font-medium">{{ event.price_range || '待定' }}</span>
-            <div class="flex gap-1">
-              <span 
-                v-for="(platform, idx) in parseTicketPlatforms(event.ticket_platforms).slice(0, 2)" 
-                :key="idx"
-                class="px-1.5 py-0.5 bg-dark-800 rounded text-xs text-dark-400"
-              >
-                {{ platform.name }}
-              </span>
-            </div>
           </div>
         </div>
       </NuxtLink>
@@ -146,157 +118,79 @@
       <p class="text-dark-400">没有找到符合条件的演出</p>
       <p class="text-dark-600 text-sm mt-2">试试调整筛选条件</p>
     </div>
-    
-    <!-- 分页 -->
-    <div v-if="totalPages > 1" class="flex items-center justify-center gap-2 mt-8">
-      <button 
-        class="p-2 rounded-lg bg-dark-800 text-dark-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="page === 1"
-        @click="page--"
-      >
-        <Icon name="ph:caret-left" />
-      </button>
-      
-      <template v-for="p in displayedPages" :key="p">
-        <button 
-          v-if="p === '...'"
-          class="px-3 py-1 text-dark-500"
-        >
-          ...
-        </button>
-        <button 
-          v-else
-          class="px-3 py-1 rounded-lg text-sm transition-colors"
-          :class="p === page ? 'bg-primary-600 text-white' : 'bg-dark-800 text-dark-400 hover:text-white'"
-          @click="page = p as number"
-        >
-          {{ p }}
-        </button>
-      </template>
-      
-      <button 
-        class="p-2 rounded-lg bg-dark-800 text-dark-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="page === totalPages"
-        @click="page++"
-      >
-        <Icon name="ph:caret-right" />
-      </button>
-    </div>
   </div>
 </template>
 
 <script setup>
-const route = useRoute()
-const router = useRouter()
-const { getEvents, getCities } = useEvents()
+import { createClient } from '@supabase/supabase-js'
 
-// 城市列表
+const config = useRuntimeConfig()
+const supabase = createClient(
+  config.public.supabaseUrl,
+  config.public.supabaseKey
+)
+
 const cities = [
   '北京', '上海', '广州', '深圳', '成都', '杭州', 
   '重庆', '武汉', '西安', '苏州', '天津', '南京',
   '长沙', '郑州', '东莞', '青岛', '沈阳', '宁波', '昆明'
 ]
 
-// 筛选条件
 const filters = reactive({
   city: '',
-  type: '',
-  time: ''
+  type: ''
 })
 
-// 分页
-const page = ref(1)
-const pageSize = 12
+const events = ref([])
+const loading = ref(true)
+const total = ref(0)
 
-// 从 URL 初始化筛选条件
-onMounted(() => {
-  if (route.query.city) filters.city = route.query.city as string
-  if (route.query.type) filters.type = route.query.type as string
-  if (route.query.time) filters.time = route.query.time as string
-})
-
-// 计算是否有筛选条件
-const hasFilters = computed(() => {
-  return filters.city || filters.type || filters.time
-})
-
-// 计算时间范围
-const getTimeRange = (time: string) => {
-  const now = new Date()
-  switch (time) {
-    case 'week':
-      return { start: now.toISOString(), end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString() }
-    case 'month':
-      return { start: now.toISOString(), end: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() }
-    case 'quarter':
-      return { start: now.toISOString(), end: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString() }
-    default:
-      return {}
+const loadEvents = async () => {
+  loading.value = true
+  
+  try {
+    let query = supabase
+      .from('events')
+      .select('*', { count: 'exact' })
+      .eq('status', 'active')
+      .gte('event_date', new Date().toISOString())
+      .order('event_date', { ascending: true })
+    
+    if (filters.city) {
+      query = query.eq('city', filters.city)
+    }
+    
+    if (filters.type) {
+      query = query.eq('event_type', filters.type)
+    }
+    
+    const { data, count, error } = await query
+    
+    if (error) throw error
+    events.value = data || []
+    total.value = count || 0
+  } catch (e) {
+    console.error('Failed to load events:', e)
+  } finally {
+    loading.value = false
   }
 }
 
-// 获取演出列表
-const { data: eventsData, pending, refresh } = await useAsyncData(
-  () => {
-    const timeRange = getTimeRange(filters.time)
-    return getEvents({
-      city: filters.city || undefined,
-      eventType: filters.type || undefined,
-      startDate: timeRange.start,
-      endDate: timeRange.end,
-      page: page.value,
-      pageSize
-    })
-  },
-  {
-    watch: [filters, page],
-    transform: (data) => data || { data: [], total: 0 }
-  }
-)
-
-const events = computed(() => eventsData.value?.data || [])
-const total = computed(() => eventsData.value?.total || 0)
-const totalPages = computed(() => Math.ceil(total.value / pageSize))
-
-// 显示的页码
-const displayedPages = computed(() => {
-  const pages: (number | string)[] = []
-  const total = totalPages.value
-  const current = page.value
-  
-  if (total <= 7) {
-    for (let i = 1; i <= total; i++) pages.push(i)
-  } else {
-    if (current <= 4) {
-      for (let i = 1; i <= 5; i++) pages.push(i)
-      pages.push('...', total)
-    } else if (current >= total - 3) {
-      pages.push(1, '...')
-      for (let i = total - 4; i <= total; i++) pages.push(i)
-    } else {
-      pages.push(1, '...', current - 1, current, current + 1, '...', total)
-    }
-  }
-  
-  return pages
+onMounted(() => {
+  loadEvents()
 })
 
-// 方法
 const resetFilters = () => {
   filters.city = ''
   filters.type = ''
-  filters.time = ''
-  page.value = 1
-  router.push('/events')
+  loadEvents()
 }
 
 const formatDateTime = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN', {
     month: 'long',
     day: 'numeric',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
+    weekday: 'short'
   })
 }
 
@@ -318,29 +212,8 @@ const getTypeClass = (type: string) => {
   return classes[type] || 'bg-dark-700 text-white'
 }
 
-const getStatusLabel = (status: string) => {
-  const labels: Record<string, string> = {
-    sold_out: '已售罄',
-    cancelled: '已取消',
-    ended: '已结束'
-  }
-  return labels[status] || ''
-}
-
-const parseTicketPlatforms = (platforms: any) => {
-  if (!platforms) return []
-  if (Array.isArray(platforms)) return platforms
-  return []
-}
-
-// SEO
 useSeoMeta({
-  title: computed(() => {
-    const parts = ['演出列表']
-    if (filters.city) parts.push(filters.city)
-    if (filters.type) parts.push(getTypeLabel(filters.type))
-    return parts.join(' - ') + ' | 看了没'
-  }),
-  description: '浏览全国音乐演出信息，筛选城市、类型、时间，找到你喜欢的演出。'
+  title: '演出列表 | 看了没',
+  description: '浏览全国音乐演出信息'
 })
 </script>
