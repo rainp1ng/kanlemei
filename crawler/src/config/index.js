@@ -41,6 +41,11 @@ export const config = {
       name: '猫眼',
       baseUrl: 'https://www.maoyan.com',
       enabled: true
+    },
+    moretickets: {
+      name: '摩天轮',
+      baseUrl: 'https://www.moretickets.com',
+      enabled: true
     }
   },
   

@@ -1,5 +1,6 @@
 import { supabase, config } from './config/index.js'
 import XiudongCrawler from './crawlers/xiudong.js'
+import MoreticketsCrawler from './crawlers/moretickets.js'
 import { uploadImageFromUrl } from './utils/media-upload.js'
 
 /**
@@ -8,7 +9,8 @@ import { uploadImageFromUrl } from './utils/media-upload.js'
 export class CrawlerManager {
   constructor() {
     this.crawlers = {
-      xiudong: new XiudongCrawler()
+      xiudong: new XiudongCrawler(),
+      moretickets: new MoreticketsCrawler()
     }
     
     this.stats = {
