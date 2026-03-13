@@ -1,0 +1,25 @@
+{
+  "name": "kanlemei-crawler",
+  "version": "1.0.0",
+  "description": "看了没 - 演出信息爬虫服务",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "crawl": "node src/cli.js",
+    "crawl:damai": "node src/cli.js damai",
+    "crawl:xiudong": "node src/cli.js xiudong",
+    "crawl:maoyan": "node src/cli.js maoyan"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "cheerio": "^1.0.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.14",
+    "puppeteer": "^22.15.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  }
+}
